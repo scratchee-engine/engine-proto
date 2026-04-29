@@ -1,0 +1,366 @@
+syntax = "proto3";
+
+package scratchee.engine;
+
+// ============================================================================
+// Engine gRPC Service
+// ============================================================================
+
+service Engine {
+  // API key issuance
+  rpc IssueApiCertificate(IssueApiCertificateRequest) returns (IssueApiCertificateResponse);
+
+  // Game lifecycle commands
+  rpc CommissionGame(CommissionGameRequest) returns (CommissionGameResponse);
+  rpc ActivateGame(ActivateGameRequest) returns (ActivateGameResponse);
+  rpc SuspendGame(SuspendGameRequest) returns (SuspendGameResponse);
+  rpc ReactivateGame(ReactivateGameRequest) returns (ReactivateGameResponse);
+  rpc RetireGame(RetireGameRequest) returns (RetireGameResponse);
+
+  // Card operations
+  rpc DealCards(DealCardsRequest) returns (DealCardsResponse);
+  rpc RevealCard(RevealCardRequest) returns (RevealCardResponse);
+  rpc CompleteCard(CompleteCardRequest) returns (CompleteCardResponse);
+  rpc RedeemCard(RedeemCardRequest) returns (RedeemCardResponse);
+
+  // Query operations
+  rpc VerifyCard(VerifyCardRequest) returns (VerifyCardResponse);
+  rpc GetCardState(GetCardStateRequest) returns (GetCardStateResponse);
+  rpc GetRollProof(GetRollProofRequest) returns (GetRollProofResponse);
+  rpc GetGameProof(GetGameProofRequest) returns (GetGameProofResponse);
+  rpc CalculateRoll(CalculateRollRequest) returns (CalculateRollResponse);
+  rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
+}
+
+// ============================================================================
+// Common structures
+// ============================================================================
+
+message AuditEntry {
+  string operation = 1;
+  string game_id = 2;
+  uint64 sequence_number = 3;
+  uint64 timestamp = 4;
+  string payload_hash = 5;
+  string entry_hash = 6;
+  string signature = 7;
+  optional string previous_hash = 8;
+}
+
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+}
+
+// ============================================================================
+// IssueApiCertificate
+// ============================================================================
+
+message IssueApiCertificateRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  string public_key_hex = 3;  // 33-byte compressed secp256k1 public key (hex)
+  string name = 4;
+}
+
+message IssueApiCertificateResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// CommissionGame
+// ============================================================================
+
+message CommissionGameRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+
+  // Commission params as JSON string (mirrors CommissionGameParams from types.rs)
+  // Includes: game_id, series, game, prize_tiers, total_losers, minimum_winners_per_roll, roll_size, card_gen
+  string params_json = 4;
+}
+
+message CommissionGameResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// ActivateGame
+// ============================================================================
+
+message ActivateGameRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+}
+
+message ActivateGameResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// SuspendGame
+// ============================================================================
+
+message SuspendGameRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+  optional uint64 freeze_at_ms = 5;
+}
+
+message SuspendGameResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// ReactivateGame
+// ============================================================================
+
+message ReactivateGameRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+}
+
+message ReactivateGameResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// RetireGame
+// ============================================================================
+
+message RetireGameRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+}
+
+message RetireGameResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// DealCards
+// ============================================================================
+
+message DealCardsRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+  uint32 count = 5;
+  optional string metadata = 6;
+  optional string modifiers_json = 7;  // JSON map of string->string
+}
+
+message DealCardsResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// RevealCard
+// ============================================================================
+
+message RevealCardRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string card_serial = 4;
+  optional string modifiers_json = 5;  // JSON map of string->string
+}
+
+message RevealCardResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// CompleteCard
+// ============================================================================
+
+message CompleteCardRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string card_serial = 4;
+  optional string modifiers_json = 5;  // JSON map of string->string
+}
+
+message CompleteCardResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// RedeemCard
+// ============================================================================
+
+message RedeemCardRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string card_serial = 4;
+  uint64 prize_amount_cents = 5;
+  string prize_tier = 6;
+}
+
+message RedeemCardResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// VerifyCard
+// ============================================================================
+
+message VerifyCardRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string card_serial = 4;
+  optional string modifiers_json = 5;  // JSON map of string->string
+}
+
+message VerifyCardResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetCardState
+// ============================================================================
+
+message GetCardStateRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string card_serial = 4;
+}
+
+message GetCardStateResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetRollProof
+// ============================================================================
+
+message GetRollProofRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+  uint32 roll_index = 5;
+}
+
+message GetRollProofResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetGameProof
+// ============================================================================
+
+message GetGameProofRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string game_id = 4;
+}
+
+message GetGameProofResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// CalculateRoll
+// ============================================================================
+
+message CalculateRollRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+
+  // Calculate roll params as JSON string (mirrors CalculateRollParams from types.rs)
+  // Includes: card_gen, prize_tiers, total_losers, minimum_winners_per_roll, roll_size,
+  //           game_beta, roll_beta, roll_index, card_index
+  string params_json = 4;
+}
+
+message CalculateRollResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetLicensedFeatures
+// ============================================================================
+
+message GetLicensedFeaturesRequest {}
+
+message GetLicensedFeaturesResponse {
+  repeated string game_modes = 1;
+  repeated string bonus_features = 2;
+}

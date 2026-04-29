@@ -1,0 +1,13 @@
+[package]
+name = "scratchee-engine-proto"
+version = "0.1.0"
+edition = "2021"
+description = "Canonical proto for the Scratchee engine — consumed by engine and api repos"
+license = "MIT"
+repository = "https://github.com/scratchee-engine/engine-proto"
+include = ["engine.proto", "src/**/*.rs", "build.rs", "README.md", "LICENSE"]
+
+[dependencies]
+
+[build-dependencies]
+tonic-build = "0.12"

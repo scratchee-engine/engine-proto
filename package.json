@@ -1,0 +1,13 @@
+{
+  "name": "@scratchee-engine/engine-proto",
+  "version": "0.1.0",
+  "description": "Canonical proto for the Scratchee engine — consumed by engine and api repos",
+  "license": "MIT",
+  "repository": "github:scratchee-engine/engine-proto",
+  "main": "engine.proto",
+  "files": [
+    "engine.proto",
+    "README.md",
+    "LICENSE"
+  ]
+}
