@@ -1,6 +1,6 @@
 [package]
 name = "scratchee-engine-proto"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Canonical proto for the Scratchee engine — consumed by engine and api repos"
 license = "MIT"
