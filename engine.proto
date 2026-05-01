@@ -29,6 +29,7 @@ service Engine {
   rpc GetRollProof(GetRollProofRequest) returns (GetRollProofResponse);
   rpc GetGameProof(GetGameProofRequest) returns (GetGameProofResponse);
   rpc CalculateRoll(CalculateRollRequest) returns (CalculateRollResponse);
+  rpc ValidateGameForCommission(ValidateGameForCommissionRequest) returns (ValidateGameForCommissionResponse);
   rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
 }
 
@@ -347,6 +348,27 @@ message CalculateRollRequest {
 }
 
 message CalculateRollResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// ValidateGameForCommission
+// ============================================================================
+
+message ValidateGameForCommissionRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+
+  // Compiled game config as JSON string (includes pay_lines, zones, total_cards, roll_size, max_win_per_card)
+  string config_json = 4;
+}
+
+message ValidateGameForCommissionResponse {
   bool ok = 1;
   uint64 request_id = 2;
   optional string data_json = 3;
