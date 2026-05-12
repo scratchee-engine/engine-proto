@@ -1,0 +1,10 @@
+#!/bin/sh
+# Pre-commit hook for scratchee-engine-proto
+# Blocks commits that would fail cargo check or clippy
+
+set -e
+
+echo "Running pre-commit checks..."
+make precommit
+
+echo "✓ Pre-commit checks passed"
