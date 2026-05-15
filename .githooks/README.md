@@ -1,8 +1,8 @@
 # Git Hooks
 
-## Pre-commit Hook
+## Pre-push Hook
 
-Validates that `package.json` version matches the current git tag (when committing on a tagged commit).
+Validates that `package.json` version matches version tags when pushing tags to remote.
 
 ### Installation
 
@@ -13,7 +13,7 @@ git config core.hooksPath .githooks
 Or manually symlink:
 
 ```bash
-ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
+ln -sf ../../.githooks/pre-push .git/hooks/pre-push
 ```
 
 ### Requirements
@@ -22,5 +22,21 @@ ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
 
 ### Behavior
 
-- On tagged commits: fails if package.json version doesn't match tag
-- On non-tagged commits: passes (no check)
+- When pushing version tags (`refs/tags/v*`): validates package.json version at the tagged commit matches the tag
+- When pushing non-version refs (branches, other tags): passes (no check)
+- Prevents the actual drift failure mode: "commit without bump, then tag"
+
+### Example
+
+```bash
+# This will be rejected:
+git tag v0.3.0          # package.json still at 0.2.1
+git push origin v0.3.0  # ❌ Hook blocks: version mismatch
+
+# Correct flow:
+jq '.version = "0.3.0"' package.json > package.json.tmp && mv package.json.tmp package.json
+git add package.json
+git commit -m "chore: bump version to 0.3.0"
+git tag v0.3.0
+git push origin v0.3.0  # ✓ Hook passes
+```

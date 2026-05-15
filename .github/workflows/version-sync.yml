@@ -20,9 +20,11 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          TAG=${GITHUB_REF#refs/tags/v}
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "Extracted version: $TAG"
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted tag: $TAG_NAME, version: $VERSION"
 
       - name: Update package.json version
         run: |
@@ -50,3 +52,11 @@ jobs:
           git add package.json
           git commit -m "chore: bump package.json version to ${{ steps.version.outputs.version }}"
           git push origin HEAD:main
+
+      - name: Move tag to updated commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          git tag -f "$TAG_NAME"
+          git push --force-with-lease origin "$TAG_NAME"
+          echo "Moved tag $TAG_NAME to commit with updated package.json"

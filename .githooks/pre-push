@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Pre-push hook: verify package.json version matches git tag when pushing version tags
+
+set -e
+
+# Read stdin for pushed refs
+while read local_ref local_sha remote_ref remote_sha; do
+    # Check if pushing a version tag (refs/tags/v*)
+    if [[ "$remote_ref" =~ ^refs/tags/v[0-9] ]]; then
+        TAG_NAME="${remote_ref#refs/tags/}"
+        TAG_VERSION="${TAG_NAME#v}"
+        
+        # Get package.json version at the commit being tagged
+        PACKAGE_VERSION=$(git show "$local_sha:package.json" | jq -r '.version')
+        
+        if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "ERROR: Rejecting tag push $TAG_NAME"
+            echo "  Tag version: $TAG_VERSION"
+            echo "  package.json version at $local_sha: $PACKAGE_VERSION"
+            echo ""
+            echo "Fix: Update package.json version to $TAG_VERSION before tagging:"
+            echo "  jq '.version = \"$TAG_VERSION\"' package.json > package.json.tmp && mv package.json.tmp package.json"
+            echo "  git add package.json"
+            echo "  git commit --amend --no-edit"
+            echo "  git tag -f $TAG_NAME"
+            exit 1
+        fi
+        
+        echo "✓ Tag $TAG_NAME matches package.json version ($PACKAGE_VERSION) at $local_sha"
+    fi
+done
+
+exit 0
