@@ -29,7 +29,6 @@ service Engine {
   rpc GetCardState(GetCardStateRequest) returns (GetCardStateResponse);
   rpc GetRollProof(GetRollProofRequest) returns (GetRollProofResponse);
   rpc GetGameProof(GetGameProofRequest) returns (GetGameProofResponse);
-  rpc CalculateRoll(CalculateRollRequest) returns (CalculateRollResponse);
   rpc ValidateGameForCommission(ValidateGameForCommissionRequest) returns (ValidateGameForCommissionResponse);
   rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
 }
@@ -353,28 +352,6 @@ message GetGameProofResponse {
 }
 
 // ============================================================================
-// CalculateRoll
-// ============================================================================
-
-message CalculateRollRequest {
-  uint64 request_id = 1;
-  uint64 timestamp = 2;
-  optional string signature = 3;
-
-  // Calculate roll params as JSON string (mirrors CalculateRollParams from types.rs)
-  // Includes: card_gen, prize_tiers, total_losers, minimum_winners_per_roll, roll_size,
-  //           game_beta, roll_beta, roll_index, card_index
-  string params_json = 4;
-}
-
-message CalculateRollResponse {
-  bool ok = 1;
-  uint64 request_id = 2;
-  optional string data_json = 3;
-  optional AuditEntry audit_entry = 4;
-  optional ErrorResponse error = 5;
-}
-
 // ============================================================================
 // ValidateGameForCommission
 // ============================================================================
