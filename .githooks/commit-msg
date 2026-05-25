@@ -1,18 +1,28 @@
 #!/usr/bin/env sh
-# SEN-602: commit-msg hook — warn on closing-keyword + Linear ticket ID combos
+# SEN-602 / SEN-628: commit-msg hook — gate closing-keyword + Linear ticket-ID combos
 #
 # Linear's GitHub integration auto-closes tickets when a commit on the default
 # branch contains a closing magic word ("Fixes", "Closes", "Resolves", etc.)
 # followed by a ticket ID. For multi-iteration umbrella tickets, every push
 # would flip the ticket to Done even when the work isn't complete.
 #
-# This hook detects such combos in the commit message body and prompts the
-# author to confirm the commit actually closes the referenced ticket. If the
-# author says "no" (or default), the commit is aborted so they can switch to a
-# non-closing reference like "Refs SEN-XXX" or "Part of SEN-XXX".
+# Behaviour matrix (Edge ratified A + C1 on SEN-628):
 #
-# Non-interactive contexts (no TTY) warn-and-allow — the warning still appears
-# in CI logs so the pattern is visible after-the-fact.
+#   | Context        | Closing-keyword + ticket-ID | SEN_602_CLOSE_INTENT_CONFIRMED | Result        |
+#   | -------------- | --------------------------- | ------------------------------ | ------------- |
+#   | any            | absent                      | (irrelevant)                   | silent allow  |
+#   | interactive    | present                     | (irrelevant)                   | prompt y/N    |
+#   | non-interactive| present                     | unset / not "1"                | HARD-FAIL     |
+#   | non-interactive| present                     | "1"                            | allow + warn  |
+#
+# Pre-SEN-628 behaviour was "warn + allow" in non-interactive context, which
+# let agent commits silently land wrong-ticket auto-closes (e.g. SEN-624
+# false-close at parent@8fa8e65 — Jett incident, motivated this update).
+#
+# Escape hatch:
+#   SEN_602_CLOSE_INTENT_CONFIRMED=1 git commit -m "Fixes SEN-XXX - ..."
+# Use only when the commit truly closes the referenced ticket and you are
+# scripting the commit (CI release flow, automated migration, etc.).
 #
 # Closing keywords cited from https://linear.app/docs/github
 
@@ -54,13 +64,38 @@ printf 'branch. For iteration commits on multi-step umbrella tickets, prefer a n
 printf 'reference: "Refs SEN-XXX", "Part of SEN-XXX", or "Related to SEN-XXX".\n'
 printf '\n'
 
-# Non-interactive (CI, scripted, agent shells): warn-and-allow.
+# Non-interactive (CI, scripted, agent shells): HARD-FAIL by default (Edge
+# A+C1 ruling on SEN-628). Pre-SEN-628 this path warned + allowed, which let
+# wrong-ticket closes silently land (SEN-624 false-close at parent@8fa8e65).
+#
+# Escape hatch: set SEN_602_CLOSE_INTENT_CONFIRMED=1 in env. Use ONLY when:
+#   1. You are scripting the commit (CI release flow, automated migration), AND
+#   2. The closing keyword + ticket-ID combo is intentional — the commit
+#      genuinely closes the referenced ticket.
+#
 # `[ ! -t 0 ]` detects pipe/redirect/agent contexts where prompting would hang
 # or fail. /dev/tty may exist but not be openable in those contexts (macOS),
 # so we don't try it.
 if [ ! -t 0 ]; then
-    printf '(Non-interactive context — allowing commit. Warning logged above.)\n'
-    exit 0
+    if [ "${SEN_602_CLOSE_INTENT_CONFIRMED:-}" = "1" ]; then
+        printf '(Non-interactive context with SEN_602_CLOSE_INTENT_CONFIRMED=1 — allowing commit.)\n'
+        exit 0
+    fi
+    printf '✗ Commit aborted (Edge ratified A+C1 on SEN-628):\n'
+    printf '  Non-interactive context cannot confirm closing intent at the prompt, and the\n'
+    printf '  closing-keyword + ticket-ID combo would auto-close the referenced ticket via\n'
+    printf '  the Linear-GitHub integration. Past wrong-ticket closes (SEN-624 false-close\n'
+    printf '  at parent@8fa8e65) motivated the hard-fail.\n'
+    printf '\n'
+    printf '  Options:\n'
+    printf '    1. Edit the commit message — use "Refs SEN-XXX" / "Part of SEN-XXX" /\n'
+    printf '       "Related to SEN-XXX" instead. The conventional subject\n'
+    printf '       "fix(scope): SEN-XXX - description" is also safe (does not auto-close).\n'
+    printf '    2. If the commit genuinely closes the referenced ticket AND you are\n'
+    printf '       scripting it intentionally, re-run with:\n'
+    printf '          SEN_602_CLOSE_INTENT_CONFIRMED=1 git commit ...\n'
+    printf '    3. Bypass the hook entirely with --no-verify (last resort; loses the guard).\n'
+    exit 1
 fi
 
 # Interactive prompt (human shell, stdin is a TTY)
