@@ -1,0 +1,81 @@
+#!/usr/bin/env sh
+# SEN-602: commit-msg hook — warn on closing-keyword + Linear ticket ID combos
+#
+# Linear's GitHub integration auto-closes tickets when a commit on the default
+# branch contains a closing magic word ("Fixes", "Closes", "Resolves", etc.)
+# followed by a ticket ID. For multi-iteration umbrella tickets, every push
+# would flip the ticket to Done even when the work isn't complete.
+#
+# This hook detects such combos in the commit message body and prompts the
+# author to confirm the commit actually closes the referenced ticket. If the
+# author says "no" (or default), the commit is aborted so they can switch to a
+# non-closing reference like "Refs SEN-XXX" or "Part of SEN-XXX".
+#
+# Non-interactive contexts (no TTY) warn-and-allow — the warning still appears
+# in CI logs so the pattern is visible after-the-fact.
+#
+# Closing keywords cited from https://linear.app/docs/github
+
+set -e
+
+MSG_FILE="$1"
+[ -z "$MSG_FILE" ] && exit 0
+
+# Skip merge and squash commits (auto-generated messages)
+case "$2" in
+  merge|squash) exit 0 ;;
+esac
+
+# Read message, strip leading-# comment lines
+MSG=$(grep -v '^#' "$MSG_FILE" 2>/dev/null || cat "$MSG_FILE")
+
+# Linear-GitHub closing magic words (case-insensitive)
+KEYWORDS='close|closes|closed|closing|fix|fixes|fixed|fixing|resolve|resolves|resolved|resolving|complete|completes|completed|completing|implements|implemented|implementing'
+
+# Linear workspace ticket-ID prefixes
+TICKET='(SEN|NIT|NYX)-[0-9]+'
+
+# Match: keyword immediately followed by whitespace-or-colon then ticket ID.
+# Conventional-commit subjects like "fix(scope): SEN-XXX -" don't match because
+# "fix" is followed by "(", not whitespace/colon.
+MATCHES=$(printf '%s\n' "$MSG" | grep -iEo "(^|[^A-Za-z])(${KEYWORDS})[[:space:]:]+${TICKET}" 2>/dev/null | sed -E 's/^[^A-Za-z]+//' || true)
+
+[ -z "$MATCHES" ] && exit 0
+
+# Warn — combo detected
+printf '\n'
+printf '⚠️  SEN-602: closing keyword + Linear ticket ID detected in commit message\n'
+printf '\n'
+printf 'Match(es):\n'
+printf '%s\n' "$MATCHES" | sed 's/^/  /'
+printf '\n'
+printf 'Linear auto-closes the referenced ticket(s) when this commit reaches the default\n'
+printf 'branch. For iteration commits on multi-step umbrella tickets, prefer a non-closing\n'
+printf 'reference: "Refs SEN-XXX", "Part of SEN-XXX", or "Related to SEN-XXX".\n'
+printf '\n'
+
+# Non-interactive (CI, scripted, agent shells): warn-and-allow.
+# `[ ! -t 0 ]` detects pipe/redirect/agent contexts where prompting would hang
+# or fail. /dev/tty may exist but not be openable in those contexts (macOS),
+# so we don't try it.
+if [ ! -t 0 ]; then
+    printf '(Non-interactive context — allowing commit. Warning logged above.)\n'
+    exit 0
+fi
+
+# Interactive prompt (human shell, stdin is a TTY)
+printf 'Does this commit fully complete the referenced ticket(s)? [y/N] '
+ANSWER=""
+read -r ANSWER || ANSWER=""
+
+case "$ANSWER" in
+    [yY]|[yY][eE][sS])
+        printf '✓ Proceeding.\n'
+        exit 0
+        ;;
+    *)
+        printf '✗ Commit aborted. Edit your message (use Refs/Part of for iteration commits)\n'
+        printf '  and re-commit, or pass --no-verify to bypass.\n'
+        exit 1
+        ;;
+esac
