@@ -1,5 +1,11 @@
 #!/usr/bin/env sh
-# SEN-602 / SEN-628: commit-msg hook — gate closing-keyword + Linear ticket-ID combos
+# SEN-602 / SEN-628 / SEN-766: commit-msg hook — gate auto-close + auto-attach drift
+#
+# Two drift patterns gated:
+#   1. SEN-602/628: closing-keyword + ticket-ID → auto-close
+#   2. SEN-766: doc-sweep multi-ticket refs → auto-attach + status drift
+#
+# SEN-602 / SEN-628: gate closing-keyword + Linear ticket-ID combos
 #
 # Linear's GitHub integration auto-closes tickets when a commit on the default
 # branch contains a closing magic word ("Fixes", "Closes", "Resolves", etc.)
@@ -50,7 +56,8 @@ TICKET='(SEN|NIT|NYX)-[0-9]+'
 # "fix" is followed by "(", not whitespace/colon.
 MATCHES=$(printf '%s\n' "$MSG" | grep -iEo "(^|[^A-Za-z])(${KEYWORDS})[[:space:]:]+${TICKET}" 2>/dev/null | sed -E 's/^[^A-Za-z]+//' || true)
 
-[ -z "$MATCHES" ] && exit 0
+# Only process SEN-602 if matches found; otherwise skip to SEN-766 check
+if [ -n "$MATCHES" ]; then
 
 # Warn — combo detected
 printf '\n'
@@ -78,39 +85,214 @@ printf '\n'
 # so we don't try it.
 if [ ! -t 0 ]; then
     if [ "${SEN_602_CLOSE_INTENT_CONFIRMED:-}" = "1" ]; then
-        printf '(Non-interactive context with SEN_602_CLOSE_INTENT_CONFIRMED=1 — allowing commit.)\n'
-        exit 0
+        printf '(Non-interactive context with SEN_602_CLOSE_INTENT_CONFIRMED=1 — proceeding to remaining checks.)\n'
+        # Continue to SEN-766 check (don't exit yet)
+    else
+        printf '✗ Commit aborted (Edge ratified A+C1 on SEN-628):\n'
+        printf '  Non-interactive context cannot confirm closing intent at the prompt, and the\n'
+        printf '  closing-keyword + ticket-ID combo would auto-close the referenced ticket via\n'
+        printf '  the Linear-GitHub integration. Past wrong-ticket closes (SEN-624 false-close\n'
+        printf '  at parent@8fa8e65) motivated the hard-fail.\n'
+        printf '\n'
+        printf '  Options:\n'
+        printf '    1. Edit the commit message — use "Refs SEN-XXX" / "Part of SEN-XXX" /\n'
+        printf '       "Related to SEN-XXX" instead. The conventional subject\n'
+        printf '       "fix(scope): SEN-XXX - description" is also safe (does not auto-close).\n'
+        printf '    2. If the commit genuinely closes the referenced ticket AND you are\n'
+        printf '       scripting it intentionally, re-run with:\n'
+        printf '          SEN_602_CLOSE_INTENT_CONFIRMED=1 git commit ...\n'
+        printf '    3. Bypass the hook entirely with --no-verify (last resort; loses the guard).\n'
+        exit 1
     fi
-    printf '✗ Commit aborted (Edge ratified A+C1 on SEN-628):\n'
-    printf '  Non-interactive context cannot confirm closing intent at the prompt, and the\n'
-    printf '  closing-keyword + ticket-ID combo would auto-close the referenced ticket via\n'
-    printf '  the Linear-GitHub integration. Past wrong-ticket closes (SEN-624 false-close\n'
-    printf '  at parent@8fa8e65) motivated the hard-fail.\n'
-    printf '\n'
-    printf '  Options:\n'
-    printf '    1. Edit the commit message — use "Refs SEN-XXX" / "Part of SEN-XXX" /\n'
-    printf '       "Related to SEN-XXX" instead. The conventional subject\n'
-    printf '       "fix(scope): SEN-XXX - description" is also safe (does not auto-close).\n'
-    printf '    2. If the commit genuinely closes the referenced ticket AND you are\n'
-    printf '       scripting it intentionally, re-run with:\n'
-    printf '          SEN_602_CLOSE_INTENT_CONFIRMED=1 git commit ...\n'
-    printf '    3. Bypass the hook entirely with --no-verify (last resort; loses the guard).\n'
-    exit 1
+else
+
+    # Interactive prompt (human shell, stdin is a TTY)
+    printf 'Does this commit fully complete the referenced ticket(s)? [y/N] '
+    ANSWER=""
+    read -r ANSWER || ANSWER=""
+
+    case "$ANSWER" in
+        [yY]|[yY][eE][sS])
+            printf '✓ Proceeding to remaining checks.\n'
+            # Continue to SEN-766 check (don't exit yet)
+            ;;
+        *)
+            printf '✗ Commit aborted. Edit your message (use Refs/Part of for iteration commits)\n'
+            printf '  and re-commit, or pass --no-verify to bypass.\n'
+            exit 1
+            ;;
+    esac
+fi # end of [ ! -t 0 ] check
+
+fi # end of [ -n "$MATCHES" ] check
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SEN-766: gate doc-sweep commits with multi-ticket body references
+# ─────────────────────────────────────────────────────────────────────────────
+# Linear-GitHub integration auto-attaches commits AND auto-moves ticket state when
+# commit bodies cite ticket IDs. Doc-sweep commits (docs(log), chore(sweep),
+# docs(spec)) cataloging multiple tickets trigger Backlog → In Progress and
+# Done → In Review drift.
+#
+# Three incidents in 24h (2026-05-29) motivated this guard:
+#   - feedback_linear_autolink_drift.md documents the pattern
+#
+# Behaviour:
+#   - Sweep-class subject scope (docs(log)|chore(sweep)|docs(spec)) + body contains
+#     ticket refs other than primary subject ticket → gate
+#   - Non-interactive: HARD-FAIL (unless SEN_766_ALLOW_MULTI_TICKET_REFERENCE=1)
+#   - Interactive: prompt y/N
+#
+# Escape hatch:
+#   SEN_766_ALLOW_MULTI_TICKET_REFERENCE=1 git commit -m "..."
+# Use only for intentional multi-ticket commits (rare; e.g., bundled fixes).
+#
+# Work commits (fix/feat/refactor) legitimately reference multiple tickets and
+# are excluded from this check.
+
+# Extract subject (first non-comment line)
+SUBJECT=$(printf '%s\n' "$MSG" | grep -v '^#' | head -1)
+
+# Match doc-sweep scope patterns: docs(log), chore(sweep), docs(spec), etc.
+SWEEP_PATTERN='(docs|chore)\((log|sweep|spec|memory|verdict|qa)\):'
+
+if printf '%s' "$SUBJECT" | grep -qE "^${SWEEP_PATTERN}"; then
+    # Extract primary ticket ID from subject
+    PRIMARY_TICKET=$(printf '%s' "$SUBJECT" | grep -oE "${TICKET}" | head -1 || true)
+
+    if [ -n "$PRIMARY_TICKET" ]; then
+        # Scan body (everything after subject line) for ticket refs
+        BODY=$(printf '%s\n' "$MSG" | tail -n +2)
+        BODY_TICKETS=$(printf '%s' "$BODY" | grep -oE "${TICKET}" | sort -u || true)
+
+        # Filter out primary ticket — check if other tickets remain
+        OTHER_TICKETS=$(printf '%s\n' "$BODY_TICKETS" | grep -vFx "$PRIMARY_TICKET" || true)
+
+        if [ -n "$OTHER_TICKETS" ]; then
+            printf '\n'
+            printf '⚠️  SEN-766: doc-sweep commit with multi-ticket body references detected\n'
+            printf '\n'
+            printf 'Subject ticket: %s\n' "$PRIMARY_TICKET"
+            printf 'Body references:\n'
+            printf '%s\n' "$OTHER_TICKETS" | sed 's/^/  /'
+            printf '\n'
+            printf 'Linear auto-attaches commits to ALL referenced tickets and auto-moves state\n'
+            printf '(Backlog → In Progress, Done → In Review). Doc-sweep commits should reference\n'
+            printf 'only the primary ticket in the subject. Per-ticket details belong in per-ticket\n'
+            printf 'commits or working/ files, not sweep commit bodies.\n'
+            printf '\n'
+
+            # Non-interactive: HARD-FAIL by default
+            if [ ! -t 0 ]; then
+                if [ "${SEN_766_ALLOW_MULTI_TICKET_REFERENCE:-}" = "1" ]; then
+                    printf '(Non-interactive context with SEN_766_ALLOW_MULTI_TICKET_REFERENCE=1 — proceeding to remaining checks.)\n'
+                    # Continue to SEN-767 check (don't exit yet)
+                else
+                    printf '✗ Commit aborted:\n'
+                    printf '  Non-interactive context + doc-sweep scope + multi-ticket body refs would\n'
+                    printf '  trigger Linear auto-attach status drift. Three incidents in 24h (2026-05-29)\n'
+                    printf '  motivated this guard (feedback_linear_autolink_drift.md).\n'
+                    printf '\n'
+                    printf '  Options:\n'
+                    printf '    1. Remove body ticket refs — sweep commits should catalog in subject only.\n'
+                    printf '    2. Split into per-ticket commits if per-ticket details are needed.\n'
+                    printf '    3. If the multi-ticket reference is intentional (rare; bundled fix), re-run:\n'
+                    printf '          SEN_766_ALLOW_MULTI_TICKET_REFERENCE=1 git commit ...\n'
+                    printf '    4. Bypass with --no-verify (last resort; loses the guard).\n'
+                    exit 1
+                fi
+            else
+
+            # Interactive prompt
+            printf 'Is the multi-ticket body reference intentional? [y/N] '
+            ANSWER=""
+            read -r ANSWER || ANSWER=""
+
+            case "$ANSWER" in
+                [yY]|[yY][eE][sS])
+                    printf '✓ Proceeding to remaining checks.\n'
+                    # Continue to SEN-767 check (don't exit yet)
+                    ;;
+                *)
+                    printf '✗ Commit aborted. Remove body ticket refs or split into per-ticket commits.\n'
+                    exit 1
+                    ;;
+            esac
+            fi # end of [ ! -t 0 ] check
+        fi
+    fi
 fi
 
-# Interactive prompt (human shell, stdin is a TTY)
-printf 'Does this commit fully complete the referenced ticket(s)? [y/N] '
-ANSWER=""
-read -r ANSWER || ANSWER=""
+# ─────────────────────────────────────────────────────────────────────────────
+# SEN-767: gate Co-Authored-By trailer
+# ─────────────────────────────────────────────────────────────────────────────
+# Project CLAUDE.md Hard Rules §9.5: "Conventional commits only. No co-authored-by,
+# no emojis before type+scope." Agents commit under Kaity's shared token; the
+# Co-Authored-By trailer is both redundant and violates the project convention.
+#
+# Behaviour:
+#   - Message contains Co-Authored-By: trailer → gate
+#   - Non-interactive: HARD-FAIL (unless SEN_767_ALLOW_CO_AUTHOR=1)
+#   - Interactive: prompt y/N
+#
+# Escape hatch:
+#   SEN_767_ALLOW_CO_AUTHOR=1 git commit -m "..."
+# Use only when you genuinely need to attribute a co-author (e.g., human pair
+# programming sessions where attribution is required by org policy).
+#
+# Motivation: SEN-766 commit (parent@ea2d26e) shipped with Co-Authored-By trailer,
+# violating Hard Rules §9.5 (Sage-2 HIGH finding). This gate prevents recurrence.
 
-case "$ANSWER" in
-    [yY]|[yY][eE][sS])
-        printf '✓ Proceeding.\n'
-        exit 0
-        ;;
-    *)
-        printf '✗ Commit aborted. Edit your message (use Refs/Part of for iteration commits)\n'
-        printf '  and re-commit, or pass --no-verify to bypass.\n'
+# Match Co-Authored-By: trailer (case-insensitive, anywhere in message)
+CO_AUTHOR_MATCH=$(printf '%s\n' "$MSG" | grep -iE '^Co-Authored-By:' || true)
+
+if [ -n "$CO_AUTHOR_MATCH" ]; then
+    printf '\n'
+    printf '⚠️  SEN-767: Co-Authored-By trailer detected in commit message\n'
+    printf '\n'
+    printf 'Match:\n'
+    printf '%s\n' "$CO_AUTHOR_MATCH" | sed 's/^/  /'
+    printf '\n'
+    printf 'Project convention (CLAUDE.md Hard Rules §9.5): agent commits use Kaity'\''s\n'
+    printf 'shared token; Co-Authored-By is redundant and violates the no-co-author rule.\n'
+    printf 'Remove the trailer before committing.\n'
+    printf '\n'
+
+    # Non-interactive: HARD-FAIL by default
+    if [ ! -t 0 ]; then
+        if [ "${SEN_767_ALLOW_CO_AUTHOR:-}" = "1" ]; then
+            printf '(Non-interactive context with SEN_767_ALLOW_CO_AUTHOR=1 — allowing commit.)\n'
+            exit 0
+        fi
+        printf '✗ Commit aborted:\n'
+        printf '  Non-interactive context + Co-Authored-By trailer violates CLAUDE.md Hard Rules\n'
+        printf '  §9.5 (no co-authored-by). SEN-766 commit (parent@ea2d26e) shipped with this\n'
+        printf '  trailer and triggered Sage-2 HIGH finding; this gate prevents recurrence.\n'
+        printf '\n'
+        printf '  Options:\n'
+        printf '    1. Remove the Co-Authored-By: line from the commit message.\n'
+        printf '    2. If co-author attribution is genuinely required (e.g., human pair\n'
+        printf '       programming session), re-run with:\n'
+        printf '          SEN_767_ALLOW_CO_AUTHOR=1 git commit ...\n'
+        printf '    3. Bypass the hook entirely with --no-verify (last resort; loses all guards).\n'
         exit 1
-        ;;
-esac
+    fi
+
+    # Interactive prompt
+    printf 'Is co-author attribution genuinely required for this commit? [y/N] '
+    ANSWER=""
+    read -r ANSWER || ANSWER=""
+
+    case "$ANSWER" in
+        [yY]|[yY][eE][sS])
+            printf '✓ Proceeding.\n'
+            exit 0
+            ;;
+        *)
+            printf '✗ Commit aborted. Remove Co-Authored-By: trailer and re-commit.\n'
+            exit 1
+            ;;
+    esac
+fi
+
+exit 0
