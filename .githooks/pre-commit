@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Pre-commit hook for scratchee parent umbrella repo
+# Selective checks based on staged file paths
+
+set -e
+
+echo "Running pre-commit checks..."
+make precommit
+
+echo "✓ Pre-commit checks passed"
