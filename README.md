@@ -2,6 +2,16 @@
 
 Canonical protocol buffer definition for the Scratchee engine gRPC interface.
 
+## Developer Setup
+
+After cloning this repository, activate the git hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This enables commit-msg, pre-commit, and pre-push hooks that enforce project conventions (SEN-602/628/766/767/769).
+
 ## What this is
 
 This repository contains the single source of truth for `engine.proto` — the gRPC service definition consumed by:
