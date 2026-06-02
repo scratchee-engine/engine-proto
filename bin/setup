@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+echo "Activating git hooks..."
+git config core.hooksPath .githooks
+echo "✓ Hooks activated at .githooks/"
