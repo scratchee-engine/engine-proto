@@ -4,10 +4,10 @@ Canonical protocol buffer definition for the Scratchee engine gRPC interface.
 
 ## Developer Setup
 
-After cloning this repository, activate the git hooks:
+After cloning this repository, run the setup script to activate git hooks:
 
 ```bash
-git config core.hooksPath .githooks
+bin/setup
 ```
 
 This enables commit-msg, pre-commit, and pre-push hooks that enforce project conventions (SEN-602/628/766/767/769).
