@@ -31,6 +31,8 @@ service Engine {
   rpc GetGameProof(GetGameProofRequest) returns (GetGameProofResponse);
   rpc ValidateGameForCommission(ValidateGameForCommissionRequest) returns (ValidateGameForCommissionResponse);
   rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
+  rpc GetLoadedGames(GetLoadedGamesRequest) returns (GetLoadedGamesResponse);
+  rpc GetCommissionStats(GetCommissionStatsRequest) returns (GetCommissionStatsResponse);  // SEN-941: Async stats retrieval
 }
 
 // ============================================================================
@@ -382,4 +384,32 @@ message GetLicensedFeaturesRequest {}
 message GetLicensedFeaturesResponse {
   repeated string game_modes = 1;
   repeated string bonus_features = 2;
+}
+
+// ============================================================================
+// GetLoadedGames
+// ============================================================================
+
+message GetLoadedGamesRequest {}
+
+message GetLoadedGamesResponse {
+  repeated string game_ids = 1;
+}
+
+// ============================================================================
+// GetCommissionStats
+// ============================================================================
+
+message GetCommissionStatsRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  string game_id = 3;
+}
+
+message GetCommissionStatsResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional string error = 4;
+  optional bool computing = 5;  // true if stats compute in progress, API should retry
 }
