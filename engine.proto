@@ -33,6 +33,8 @@ service Engine {
   rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
   rpc GetLoadedGames(GetLoadedGamesRequest) returns (GetLoadedGamesResponse);
   rpc GetCommissionStats(GetCommissionStatsRequest) returns (GetCommissionStatsResponse);  // SEN-941: Async stats retrieval
+  rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
+  rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
 }
 
 // ============================================================================
@@ -412,4 +414,38 @@ message GetCommissionStatsResponse {
   optional string data_json = 3;
   optional string error = 4;
   optional bool computing = 5;  // true if stats compute in progress, API should retry
+}
+
+// GetQuarantine (SEN-948): list all quarantined audit entries for operator visibility.
+message GetQuarantineRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+}
+
+message GetQuarantineResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;  // JSON { count, entries[] } of quarantined audit entries when ok=true
+  optional string error = 4;
+}
+
+// ClearQuarantine (SEN-949): clear quarantined audit entries. Mutating operator action —
+// routes through the engine's signature-gated + audited command path. API exposure of this
+// RPC must be Knox-authorized (removes audit-forensic records + resets retry state).
+message ClearQuarantineRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  optional string signature = 3;
+  string mode = 4;                 // "all" | "by_game_id" | "by_entry_hash"
+  optional string game_id = 5;     // required for by_game_id
+  optional string entry_hash = 6;  // hex, required for by_entry_hash
+  bool dry_run = 7;
+}
+
+message ClearQuarantineResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;  // JSON { removed_count, dry_run }
+  optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
 }
