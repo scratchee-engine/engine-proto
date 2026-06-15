@@ -33,6 +33,7 @@ service Engine {
   rpc GetLicensedFeatures(GetLicensedFeaturesRequest) returns (GetLicensedFeaturesResponse);
   rpc GetLoadedGames(GetLoadedGamesRequest) returns (GetLoadedGamesResponse);
   rpc GetCommissionStats(GetCommissionStatsRequest) returns (GetCommissionStatsResponse);  // SEN-941: Async stats retrieval
+  rpc RecomputeCommissionStats(RecomputeCommissionStatsRequest) returns (RecomputeCommissionStatsResponse);  // SEN-1025: recompute + re-cache a committed game's stats (stats-only; no recommission)
   rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
 }
@@ -414,6 +415,25 @@ message GetCommissionStatsResponse {
   optional string data_json = 3;
   optional string error = 4;
   optional bool computing = 5;  // true if stats compute in progress, API should retry
+}
+
+// RecomputeCommissionStats (SEN-1025): regenerate + re-cache a committed game's
+// commission stats from its retained inputs using the current stats code, then
+// persist. Stats-only — no recommission, no VRF/outcome/card change. Used to repair
+// games whose cached stats were baked by older stats code (e.g. the decoy-value
+// distribution fix). Synchronous (no `computing`); `data_json` is the fresh
+// serialized CommissionStats, same shape as GetCommissionStatsResponse.data_json.
+message RecomputeCommissionStatsRequest {
+  uint64 request_id = 1;
+  uint64 timestamp = 2;
+  string game_id = 3;
+}
+
+message RecomputeCommissionStatsResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string data_json = 3;
+  optional string error = 4;
 }
 
 // GetQuarantine (SEN-948): list all quarantined audit entries for operator visibility.
