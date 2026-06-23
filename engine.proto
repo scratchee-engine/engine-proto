@@ -36,6 +36,7 @@ service Engine {
   rpc RecomputeCommissionStats(RecomputeCommissionStatsRequest) returns (RecomputeCommissionStatsResponse);  // SEN-1025: recompute + re-cache a committed game's stats (stats-only; no recommission)
   rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
+  rpc GetCardRedeemAudit(GetCardRedeemAuditRequest) returns (GetCardRedeemAuditResponse);  // SEN-1154: retrieve persisted redeem audit (off-lock)
 }
 
 // ============================================================================
@@ -467,5 +468,22 @@ message ClearQuarantineResponse {
   uint64 request_id = 2;
   optional string data_json = 3;  // JSON { removed_count, dry_run }
   optional AuditEntry audit_entry = 4;
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetCardRedeemAudit — SEN-1154: retrieve persisted CardRedeem audit entry (off-lock file I/O)
+// ============================================================================
+
+message GetCardRedeemAuditRequest {
+  uint64 request_id = 1;
+  string card_serial = 2;
+}
+
+message GetCardRedeemAuditResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  string card_serial = 3;
+  string audit_entry_json = 4;  // JSON-serialized AuditEntryResponse
   optional ErrorResponse error = 5;
 }
