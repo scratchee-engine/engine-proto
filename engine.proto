@@ -484,6 +484,6 @@ message GetCardRedeemAuditResponse {
   bool ok = 1;
   uint64 request_id = 2;
   string card_serial = 3;
-  string audit_entry_json = 4;  // JSON-serialized AuditEntryResponse
+  optional AuditEntry audit_entry = 4;  // Structured audit entry (consistent with sibling RPCs)
   optional ErrorResponse error = 5;
 }
