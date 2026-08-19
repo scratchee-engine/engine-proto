@@ -38,6 +38,7 @@ service Engine {
   rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
   rpc GetCardRedeemAudit(GetCardRedeemAuditRequest) returns (GetCardRedeemAuditResponse);  // SEN-1154: retrieve persisted redeem audit (off-lock)
+  rpc GetAutoSuspendedGames(GetAutoSuspendedGamesRequest) returns (GetAutoSuspendedGamesResponse);  // SEN-1286: query auto-suspended games with evidence
 }
 
 // ============================================================================
@@ -504,4 +505,34 @@ message GetCardRedeemAuditResponse {
   string card_serial = 3;
   optional AuditEntry audit_entry = 4;  // Structured audit entry (consistent with sibling RPCs)
   optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetAutoSuspendedGames (SEN-1286)
+// ============================================================================
+
+message VerificationEvidence {
+  string reason_code = 1;                  // e.g. "audit_chain_violation"
+  string detected_at = 2;                  // ISO 8601 timestamp
+  optional uint64 expected_sequence = 3;   // For sequence-gap violations
+  optional uint64 observed_sequence = 4;   // For sequence-gap violations
+  string verification_error_class = 5;     // e.g. "divergent_duplicate", "hash_mismatch", "sequence_gap"
+}
+
+message AutoSuspendedGame {
+  string game_id = 1;                      // UUID
+  string lifecycle = 2;                    // "verifier_auto_suspended"
+  uint64 generation = 3;                   // Monotonic lifecycle version (stale-poll protection)
+  VerificationEvidence evidence = 4;       // Structured suspension reason
+}
+
+message GetAutoSuspendedGamesRequest {
+  uint64 request_id = 1;
+}
+
+message GetAutoSuspendedGamesResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  repeated AutoSuspendedGame games = 3;    // Currently auto-suspended games
+  optional ErrorResponse error = 4;
 }
