@@ -450,10 +450,19 @@ message RecomputeCommissionStatsRequest {
 }
 
 message RecomputeCommissionStatsResponse {
+  // SEN-1318: Response status enum for structured error handling
+  enum Status {
+    UNSPECIFIED = 0;
+    SUCCESS = 1;
+    ALREADY_COMPUTING = 2;
+    FAILED = 3;
+  }
+
   bool ok = 1;
   uint64 request_id = 2;
   optional string data_json = 3;
   optional string error = 4;
+  optional Status status = 5;  // SEN-1318: structured status (field 5 is free)
 }
 
 // GetQuarantine (SEN-948): list all quarantined audit entries for operator visibility.
