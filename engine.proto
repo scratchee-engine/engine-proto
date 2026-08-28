@@ -34,6 +34,7 @@ service Engine {
   rpc GetLoadedGames(GetLoadedGamesRequest) returns (GetLoadedGamesResponse);
   rpc GetCommissionStats(GetCommissionStatsRequest) returns (GetCommissionStatsResponse);  // SEN-941: Async stats retrieval
   rpc GetCommissionProgress(GetCommissionProgressRequest) returns (GetCommissionProgressResponse);  // SEN-1233: Async commission progress
+  rpc GetCommissionResult(GetCommissionResultRequest) returns (GetCommissionResultResponse);  // SEN-1365: Read-only commission result query
   rpc RecomputeCommissionStats(RecomputeCommissionStatsRequest) returns (RecomputeCommissionStatsResponse);  // SEN-1025: recompute + re-cache a committed game's stats (stats-only; no recommission)
   rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
@@ -435,6 +436,24 @@ message GetCommissionProgressResponse {
   uint64 request_id = 2;
   optional uint32 progress_percent = 3;  // 0-100, None if not commissioning
   optional string error = 4;  // commissioning_error if set
+}
+
+// ============================================================================
+// GetCommissionResult (SEN-1365)
+// ============================================================================
+
+message GetCommissionResultRequest {
+  uint64 request_id = 1;
+  string game_id = 2;
+}
+
+message GetCommissionResultResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional string status = 3;  // "in_progress" | "commissioned" | "error"
+  optional uint32 progress_percent = 4;
+  optional string error = 5;
+  optional string committed_identity_json = 6;  // JSON: {series, game, config_hash}
 }
 
 // RecomputeCommissionStats (SEN-1025): regenerate + re-cache a committed game's
