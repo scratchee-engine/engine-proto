@@ -40,6 +40,7 @@ service Engine {
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
   rpc GetCardRedeemAudit(GetCardRedeemAuditRequest) returns (GetCardRedeemAuditResponse);  // SEN-1154: retrieve persisted redeem audit (off-lock)
   rpc GetAutoSuspendedGames(GetAutoSuspendedGamesRequest) returns (GetAutoSuspendedGamesResponse);  // SEN-1286: query auto-suspended games with evidence
+  rpc GetAuditEntry(GetAuditEntryRequest) returns (GetAuditEntryResponse);  // SEN-1463: one verified logged audit entry by game and sequence (off-lock)
 }
 
 // ============================================================================
@@ -55,6 +56,7 @@ message AuditEntry {
   string entry_hash = 6;
   string signature = 7;
   optional string previous_hash = 8;
+  optional uint64 payload_hash_version = 9;  // SEN-1463: absent = v1 (legacy subset hash); 2 = v2 full-payload hash (SEN-1443)
 }
 
 message ErrorResponse {
@@ -533,6 +535,26 @@ message GetCardRedeemAuditResponse {
   string card_serial = 3;
   optional AuditEntry audit_entry = 4;  // Structured audit entry (consistent with sibling RPCs)
   optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// GetAuditEntry — SEN-1463: one logged audit entry, read from the engine's own log off-lock.
+// The entry is returned only after the chain prefix up to it verifies (links, payload hash,
+// entry hash, signature). The payload itself is not returned; payload_hash is the logged
+// version-specific payload hash (v1: legacy subset; v2: full payload).
+// ============================================================================
+
+message GetAuditEntryRequest {
+  uint64 request_id = 1;
+  string game_id = 2;
+  uint64 sequence_number = 3;  // >= 1; the genesis (game_commission) entry is 1
+}
+
+message GetAuditEntryResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  optional AuditEntry audit_entry = 3;  // present iff ok
+  optional ErrorResponse error = 4;
 }
 
 // ============================================================================
