@@ -39,6 +39,7 @@ service Engine {
   rpc GetQuarantine(GetQuarantineRequest) returns (GetQuarantineResponse);  // SEN-948: list quarantined audit entries
   rpc ClearQuarantine(ClearQuarantineRequest) returns (ClearQuarantineResponse);  // SEN-949: clear quarantined audit entries
   rpc GetCardRedeemAudit(GetCardRedeemAuditRequest) returns (GetCardRedeemAuditResponse);  // SEN-1154: retrieve persisted redeem audit (off-lock)
+  rpc RecoverPayoutAttestation(RecoverPayoutAttestationRequest) returns (RecoverPayoutAttestationResponse);  // SEN-1483: recover byte-identical payout attestation from CardRedeem audit (off-lock)
   rpc GetAutoSuspendedGames(GetAutoSuspendedGamesRequest) returns (GetAutoSuspendedGamesResponse);  // SEN-1286: query auto-suspended games with evidence
   rpc GetAuditEntry(GetAuditEntryRequest) returns (GetAuditEntryResponse);  // SEN-1463: one verified logged audit entry by game and sequence (off-lock)
 }
@@ -534,6 +535,32 @@ message GetCardRedeemAuditResponse {
   uint64 request_id = 2;
   string card_serial = 3;
   optional AuditEntry audit_entry = 4;  // Structured audit entry (consistent with sibling RPCs)
+  optional ErrorResponse error = 5;
+}
+
+// ============================================================================
+// RecoverPayoutAttestation — SEN-1483: recover byte-identical payout attestation from CardRedeem audit (off-lock file I/O)
+// ============================================================================
+
+message PayoutAttestation {
+  string card_serial = 1;
+  uint64 prize_amount_cents = 2;
+  string prize_tier = 3;
+  uint64 timestamp = 4;
+  string attestation_hash = 5;  // hex-encoded
+  string signature = 6;          // hex-encoded
+}
+
+message RecoverPayoutAttestationRequest {
+  uint64 request_id = 1;
+  string card_serial = 2;
+}
+
+message RecoverPayoutAttestationResponse {
+  bool ok = 1;
+  uint64 request_id = 2;
+  string card_serial = 3;
+  optional PayoutAttestation payout_attestation = 4;
   optional ErrorResponse error = 5;
 }
 
